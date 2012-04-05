@@ -152,10 +152,9 @@ int main(void)
     init_sweep(&_opts);
 
     _delay_ms(1000);
-    printf("\r\n");
-    printf("OpenEBI - Open Electrical Bioimpedance " VERSION "\r\n");
+    printf("\r\nOpenEBI - Open Electrical Bioimpedance " VERSION "\r\n");
     print_options(&_opts);
-    printf("\nWhile in putty use ^J instead of ENTER\r\n");
+    printf("\r\nWhile in putty use ^J instead of ENTER\r\n");
 
     /*  Main loop */
     for (;;) {
