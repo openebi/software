@@ -1,0 +1,5 @@
+*~
+*.swp
+Thumbs.db
+obj
+.dep
