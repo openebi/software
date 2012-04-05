@@ -153,9 +153,7 @@ int main(void)
 
     _delay_ms(1000);
     printf("\r\n");
-    printf("OpenEBI - Open source electrical bioimpedance " VERSION "\r\n"
-           "Copyright (C) 2012 Department of Electronics at Aalto University\r\n\n"
-    );
+    printf("OpenEBI - Open Electrical Bioimpedance " VERSION "\r\n");
     print_options(&_opts);
     printf("\nWhile in putty use ^J instead of ENTER\r\n");
 
