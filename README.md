@@ -15,6 +15,10 @@ Step 2: Fetch the source code and build
 - Command `make`.
 - Upload/Program/Flash the `main.hex` into the OpenEBI board via ISP bus.
 
+Step 3: Connect to the board
+
+- To quickly connect to the board, use Putty, for example.
+
 ## License
 
 MIT License, see LICENSE.txt.
