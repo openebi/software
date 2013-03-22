@@ -152,7 +152,7 @@ void print_options(FILE *stream, SweepOptions *o)
     fprintf(stream, "-fstart   = %.2lf\n", o->fstart);
     fprintf(stream, "-fincr    = %.2lf\n", o->fincr);
     fprintf(stream, "-nincr    = %u\n", o->nincr);
-    fprintf(stream, "-tsettle  = %hhu\n", o->tsettle);
+    fprintf(stream, "-tsettle  = %u\n", o->tsettle);
     fprintf(stream, "-xtsettle = %hhu\n", o->xtsettle);
     fprintf(stream, "-nrange   = %hhu\n", o->nrange);
     fprintf(stream, "-pgagain  = %s\n", o->pgagain ? "true" : "false");
