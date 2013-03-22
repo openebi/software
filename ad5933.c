@@ -168,7 +168,7 @@ unsigned long int ad5933_get_fstart(void)
 
 int ad5933_set_fstart_hz(double f)
 {
-    uint32_t code = ((f * 536870912) / AD5933_CLOCK_HZ);
+    uint32_t code = (uint32_t) ((f * 536870912.0) / AD5933_CLOCK_HZ);
     return ad5933_set_fstart(code);
 }
 
@@ -194,7 +194,7 @@ unsigned long int ad5933_get_fincr(void)
 
 int ad5933_set_fincr_hz(double f)
 {
-    uint32_t code = ((f * 536870912) / AD5933_CLOCK_HZ);
+    uint32_t code = (uint32_t) ((f * 536870912.0) / AD5933_CLOCK_HZ);
     return ad5933_set_fincr(code);
 }
 
@@ -223,13 +223,13 @@ int ad5933_set_tsettle(int n, uint8_t m)
 {
     uint8_t buf[2];
 
-    buf[2] = (uint8_t) n;
+    buf[1] = (uint8_t) n;
     if (m == 2)
-        buf[1] = (buf[1] & 0xfB) | (1 << 1);
+        buf[0] = (buf[0] & 0xfB) | (1 << 1);
     if (m == 4)
-        buf[1] = (1 << 1) | (1 << 2);
+        buf[0] = (1 << 1) | (1 << 2);
     else
-        buf[1] &= 0xf9;
+        buf[0] &= 0xf9;
 
     return ad5933_wblock(AD5933_NCYCRH, buf, 2);
 }

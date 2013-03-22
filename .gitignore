@@ -1,5 +1,16 @@
 *~
 *.swp
+*.o
+*.d
+
+*.elf
+*.hex
+*.lss
+*.lst
+*.eep
+*.map
+*.sym
+
 Thumbs.db
 obj
 .dep

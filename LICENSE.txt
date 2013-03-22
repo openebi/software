@@ -1,4 +1,4 @@
-Copyright (c) 2012 Kim H Blomqvist
+Copyright (c) 2012-2013 Kim H Blomqvist
 Developed at the Department of Electronics at Aalto University
 All rights reserved.
 

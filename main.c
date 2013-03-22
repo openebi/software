@@ -1,7 +1,7 @@
 /**
  * OpenEBI
  *
- * Copyright (c) 2012 Kim H Blomqvist
+ * Copyright (c) 2012-2013 Kim H Blomqvist
  * Developed at the Department of Electronics at Aalto University
  * All rights reserved.
  *
@@ -36,14 +36,38 @@
 #include <string.h>
 #include <avr/io.h>
 
-/* For unit tests
-#define __ASSERT_USE_STDERR 1
-#include <assert.h> // diagnostics for unit tests
-*/
-
 #include "board.h"
 #include "usart0.h"
 #include "ad5933.h"
+
+// #define __ASSERT_USE_STDERR 1
+// #include <assert.h> // diagnostics for unit tests
+
+// void run_tests(void)
+// {
+//     uint8_t b;
+//     unsigned int nincr;
+//     unsigned long int freq, fincr;
+
+//     assert(ad5933_wbyte(AD5933_FREQRL, 101) != -1);    putchar('.');
+//     b = ad5933_rbyte(AD5933_FREQRL);
+//     assert(b == 101);                                  putchar('.');
+
+//     assert(ad5933_set_fstart(94928) != -1);            putchar('.');
+//     freq = ad5933_get_fstart();
+//     assert(freq == 94928);                             putchar('.');
+
+//     assert(ad5933_set_fincr(48924) != -1);             putchar('.');
+//     fincr = ad5933_get_fincr();
+//     assert(fincr == 48924);                            putchar('.');
+
+//     assert(ad5933_set_nincr(0) != -1);                 putchar('.');
+//     nincr = ad5933_get_nincr();
+//     assert(nincr == 0);                                putchar('.');
+
+//     printf("OK!\n");
+//     return;
+// }
 
 typedef struct SweepOptions SweepOptions;
 
@@ -51,19 +75,21 @@ struct SweepOptions {
     double fstart;
     double fincr;
     uint16_t nincr;
-    uint8_t range;
-    bool pgagain;
+    uint16_t tsettle;
+    uint8_t xtsettle;
+    uint8_t nrange;
+    uint8_t pgagain;
     uint8_t average;
 };
 
-void init_sweep(SweepOptions *o)
+void init_ad5933(SweepOptions *o)
 {
     ad5933_reset();
     ad5933_set_fstart_hz(o->fstart);
     ad5933_set_nincr(o->nincr);
     ad5933_set_fincr_hz(o->fincr);
-    ad5933_set_tsettle(511, 4);
-    ad5933_set_output_range(o->range);
+    ad5933_set_tsettle(o->tsettle, o->xtsettle);
+    ad5933_set_output_range(o->nrange);
     ad5933_set_pga_gain(o->pgagain);
     ad5933_standby();
 }
@@ -74,7 +100,7 @@ void take_measurement(uint8_t avg, double *rdata, double *idata)
     int32_t rdata_raw = 0, idata_raw = 0;
 
     for (i = 0; i < avg; i++) {
-        _delay_ms(1);
+        _delay_ms(1); // The conversion process takes approximately 1 ms using a 16.777 MHz clock.
         while (!ad5933_has_valid_impedance());
         rdata_raw += ad5933_get_real();
         idata_raw += ad5933_get_imaginary();
@@ -84,24 +110,24 @@ void take_measurement(uint8_t avg, double *rdata, double *idata)
         }
     }
 
-    *rdata = (double) rdata_raw/avg;
-    *idata = (double) idata_raw/avg;
+    *rdata = (double) rdata_raw / avg;
+    *idata = (double) idata_raw / avg;
 }
 
-void sweep(FILE *stream, SweepOptions *o)
+void sweep(FILE *stream, uint8_t average)
 {
     double rdata, idata;
 
     ad5933_init_with_fstart();
     ad5933_start_sweep();
 
-    take_measurement(o->average, &rdata, &idata);
-    fprintf(stream, "%4.2f;%4.2f\r\n", rdata, idata);
+    take_measurement(average, &rdata, &idata);
+    fprintf(stream, "%.4f %.4f\n", rdata, idata);
     ad5933_increment_sweep();
 
     while (!ad5933_sweep_complete()) {
-        take_measurement(o->average, &rdata, &idata);
-        fprintf(stream, "%4.2f;%4.2f\r\n", rdata, idata);
+        take_measurement(average, &rdata, &idata);
+        fprintf(stream, "%.4f %.4f\n", rdata, idata);
         ad5933_increment_sweep();
     }
     ad5933_reset();
@@ -109,114 +135,103 @@ void sweep(FILE *stream, SweepOptions *o)
 
 void freerun(FILE *stream)
 {
-    double rdata, idata;
-
     ad5933_init_with_fstart();
     ad5933_start_sweep();
 
     while(!USART0_ESCAPE) {
-        take_measurement(1, &rdata, &idata);
-        fprintf(stream, "%4.2f\t%4.2f\r\n", rdata, idata);
+        _delay_ms(1); // The conversion process takes approximately 1 ms using a 16.777 MHz clock.
+        while (!ad5933_has_valid_impedance());
+        fprintf(stream, "%d %d\n", ad5933_get_real(), ad5933_get_imaginary());
         ad5933_repeat_frequency();
     }
     ad5933_reset();
 }
 
-void print_options(SweepOptions *o)
+void print_options(FILE *stream, SweepOptions *o)
 {
-    printf("\rOptions:\r\n");
-    printf("-fstart  = %.2lf\r\n", o->fstart);
-    printf("-fincr   = %.2lf\r\n", o->fincr);
-    printf("-nincr   = %u\r\n", o->nincr);
-    printf("-range   = %u\r\n", o->range);
-    printf("-average = %u\r\n", o->average);
+    fprintf(stream, "-fstart   = %.2lf\n", o->fstart);
+    fprintf(stream, "-fincr    = %.2lf\n", o->fincr);
+    fprintf(stream, "-nincr    = %u\n", o->nincr);
+    fprintf(stream, "-tsettle  = %hhu\n", o->tsettle);
+    fprintf(stream, "-xtsettle = %hhu\n", o->xtsettle);
+    fprintf(stream, "-nrange   = %hhu\n", o->nrange);
+    fprintf(stream, "-pgagain  = %s\n", o->pgagain ? "true" : "false");
+    fprintf(stream, "-average  = %hhu\n", o->average);
 }
 
-#define VERSION "v0.1"
-
-SweepOptions _opts = {
-    .fstart = 4000,
-    .fincr = 2000,
-    .nincr = 48,
-    .range = 1,
-    .pgagain = true,
-    .average = 16
-};
-
-#define COMMAND_BUFFER 30
-char _cmdbuf[COMMAND_BUFFER] = {};
+#define VERSION "v0.2"
 
 int main(void)
 {
+    SweepOptions opts = {
+        .fstart = 4000,
+        .fincr = 2000,
+        .nincr = 48,
+        .tsettle = 10,
+        .xtsettle = 1,
+        .nrange = 1,
+        .pgagain = true,
+        .average = 16
+    };
+
+    char cmdbuf[64] = {};
+
     init_board();
-    init_sweep(&_opts);
+    init_ad5933(&opts);
 
     _delay_ms(1000);
-    printf("\r\nOpenEBI - Open Electrical Bioimpedance " VERSION "\r\n");
-    print_options(&_opts);
-    printf("\r\nWhile in putty use ^J instead of ENTER\r\n");
+    printf("\rOpenEBI " VERSION "\n");
+    printf("Copyright (c) 2012-2013 Kim H Blomqvist\n");
+    printf("Developed at the Department of Electronics at Aalto University.\n\n");
+    print_options(stdout, &opts);
+    printf("\nWhile in PuTTY use ^J instead of ENTER\n\n");
 
     /*  Main loop */
     for (;;) {
-        printf("\r$ ");
-        if (fgets(_cmdbuf, COMMAND_BUFFER - 1, stdin) == NULL) {
-            printf("ERROR!\r\n");
-            break;
+        printf("$ ");
+        if (fgets(cmdbuf, sizeof(cmdbuf), stdin) == NULL) {
+            printf("ERROR!\n");
+            continue;
         }
 
-        switch (_cmdbuf[0]) {
+        switch (cmdbuf[0]) {
             case 's':
-                sscanf(&_cmdbuf, "s:%u", &_opts.average);
-                printf("\r");
-                sweep(stdout, &_opts);
+                sweep(stdout, opts.average);
+                break;
+            case 'p':
+                sscanf(&cmdbuf[1], "%lf %lf %u %u %hhu %hhu %hhu %hhu", &opts.fstart, &opts.fincr,
+                    &opts.nincr, &opts.tsettle, &opts.xtsettle, &opts.nrange, &opts.pgagain, &opts.average);
+                if (opts.tsettle > 511)
+                    opts.tsettle = 511;
+                if (opts.xtsettle != 1 && opts.xtsettle != 2 && opts.xtsettle != 4)
+                    opts.xtsettle = 1;
+                init_ad5933(&opts);
                 break;
             case 'f':
-                printf("\r\n");
                 freerun(stdout);
                 break;
-            /* For some unkown reason does not work
-            case 'p':
-                sscanf(&_cmdbuf[2], "%lf:%lf:%u",
-                    &_opts.fstart,
-                    &_opts.fincr,
-                    &_opts.nincr
-                );
-                init_sweep(&_opts);
-            */
             case 'o':
-                print_options(&_opts);
+                print_options(stdout, &opts);
+                break;
+            // case 't':
+            //     run_tests();
+            //     break;
+            case 'h':
+                printf(
+                    "OpenEBI " VERSION "\n"
+                    "Copyright (c) 2012-2013 Kim H Blomqvist\n"
+                    "Developed at the Department of Electronics at Aalto University.\n\n"
+                    "s\tRuns a frequency sweep. Output is in \"R I\" format.\n"
+                    "p\tSets sweep options. The argument order is as in options struct.\n"
+                    "f\tFreerun using the programmed start frequency. Abort with ESC.\n"
+                    "o\tPrints the current options.\n"
+                    // "t\tRuns unit tests.\n"
+                    "h\tShows this help.\n"
+                );
                 break;
             default:
-                printf("\rCommand 'h' for help\r\n");
+                printf("Command 'h' for help\n");
                 break;
         }
     }
 }
-
-/* Unit tests
-void run_tests(void)
-{
-    uint8_t b;
-    unsigned int nincr;
-    unsigned long int freq, fincr;
-
-    assert(ad5933_wbyte(AD5933_FREQRL, 101) != -1);    putchar('.');
-    b = ad5933_rbyte(AD5933_FREQRL);
-    assert(b == 101);                                  putchar('.');
-
-    assert(ad5933_set_fstart(94928) != -1);            putchar('.');
-    freq = ad5933_get_fstart();
-    assert(freq == 94928);                             putchar('.');
-
-    assert(ad5933_set_fincr(48924) != -1);             putchar('.');
-    fincr = ad5933_get_fincr();
-    assert(fincr == 48924);                            putchar('.');
-
-    assert(ad5933_set_nincr(0) != -1);               putchar('.');
-    nincr = ad5933_get_nincr();
-    assert(nincr == 0);                              putchar('.');
-
-    printf("OK!");
-    return;
-}
-*/
